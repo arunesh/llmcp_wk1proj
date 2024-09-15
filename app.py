@@ -5,8 +5,10 @@ import openai
 import asyncio
 import json
 from datetime import datetime
-from prompts import ASSESSMENT_PROMPT, SYSTEM_PROMPT, CLASS_CONTEXT
-from student_record import read_student_record, write_student_record, format_student_record, parse_student_record
+from prompts import ASSESSMENT_PROMPT, SYSTEM_PROMPT_1, SYSTEM_PROMPT_2, ADDITIONAL_CONTEXT
+import requests
+from bs4 import BeautifulSoup
+#from student_record import read_student_record, write_student_record, format_student_record, parse_student_record
 
 from langsmith import traceable
 from langsmith.wrappers import wrap_openai
@@ -28,7 +30,7 @@ configurations = {
     "openai_gpt-4": {
         "endpoint_url": os.getenv("OPENAI_ENDPOINT"),
         "api_key": os.getenv("OPENAI_API_KEY"),
-        "model": "gpt-4"
+        "model": "gpt-3.5-turbo"
     }
 }
 
@@ -51,7 +53,25 @@ gen_kwargs = {
 
 # Configuration setting to enable or disable the system prompt
 ENABLE_SYSTEM_PROMPT = True
-ENABLE_CLASS_CONTEXT = True
+ENABLE_ADDITIONAL_CONTEXT = True
+
+def url_to_text(web_url):
+    response = requests.get(web_url)
+    # Check if the request was successful (status code 200)
+    if response.status_code == 200:
+        # Parse the HTML content of the page
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Extract all text from the parsed HTML
+        text = soup.get_text(separator=' ', strip=True)
+        #print(text)
+        return text
+    else:
+        return f"Failed to retrieve content. Status code: {response.status_code}"
+
+URL_OLD="https://www.gutenberg.org/cache/epub/221/pg221.txt"
+URL_ONE="https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2025"
+full_story_text = url_to_text(URL_ONE)
 
 @traceable
 def get_latest_user_message(message_history):
@@ -63,9 +83,9 @@ def get_latest_user_message(message_history):
 
 @traceable
 async def assess_message(message_history):
-    file_path = "student_record.md"
-    markdown_content = read_student_record(file_path)
-    parsed_record = parse_student_record(markdown_content)
+    #file_path = "student_record.md"
+    #markdown_content = read_student_record(file_path)
+    #parsed_record = parse_student_record(markdown_content)
 
     latest_message = get_latest_user_message(message_history)
 
@@ -74,46 +94,13 @@ async def assess_message(message_history):
 
     # Convert message history, alerts, and knowledge to strings
     history_str = json.dumps(filtered_history, indent=4)
-    alerts_str = json.dumps(parsed_record.get("Alerts", []), indent=4)
-    knowledge_str = json.dumps(parsed_record.get("Knowledge", {}), indent=4)
+    #alerts_str = json.dumps(parsed_record.get("Alerts", []), indent=4)
+    #knowledge_str = json.dumps(parsed_record.get("Knowledge", {}), indent=4)
     
     current_date = datetime.now().strftime('%Y-%m-%d')
+    print("Assessment is still TBD.")
 
-    # Generate the assessment prompt
-    filled_prompt = ASSESSMENT_PROMPT.format(
-        latest_message=latest_message,
-        history=history_str,
-        existing_alerts=alerts_str,
-        existing_knowledge=knowledge_str,
-        current_date=current_date
-    )
-    if ENABLE_CLASS_CONTEXT:
-        filled_prompt += "\n" + CLASS_CONTEXT
-    print("Filled prompt: \n\n", filled_prompt)
-
-    response = await client.chat.completions.create(messages=[{"role": "system", "content": filled_prompt}], **gen_kwargs)
-
-    assessment_output = response.choices[0].message.content.strip()
-    print("Assessment Output: \n\n", assessment_output)
-
-    # Parse the assessment output
-    new_alerts, knowledge_updates = parse_assessment_output(assessment_output)
-
-    # Update the student record with the new alerts and knowledge updates
-    parsed_record["Alerts"].extend(new_alerts)
-    for update in knowledge_updates:
-        topic = update["topic"]
-        note = update["note"]
-        parsed_record["Knowledge"][topic] = note
-
-    # Format the updated record and write it back to the file
-    updated_content = format_student_record(
-        parsed_record["Student Information"],
-        parsed_record["Alerts"],
-        parsed_record["Knowledge"]
-    )
-    write_student_record(file_path, updated_content)
-
+   
 @traceable
 def test_func(inp_msg):
     return "output values"
@@ -136,9 +123,11 @@ async def on_message(message: cl.Message):
     message_history = cl.user_session.get("message_history", [])
 
     if ENABLE_SYSTEM_PROMPT and (not message_history or message_history[0].get("role") != "system"):
-        system_prompt_content = SYSTEM_PROMPT
-        if ENABLE_CLASS_CONTEXT:
-            system_prompt_content += "\n" + CLASS_CONTEXT
+        system_prompt_content = SYSTEM_PROMPT_2
+        if ENABLE_ADDITIONAL_CONTEXT:
+            story_prompt = ADDITIONAL_CONTEXT.format(input_story=full_story_text)
+            print(story_prompt)
+            system_prompt_content += "\n" + story_prompt
         message_history.insert(0, {"role": "system", "content": system_prompt_content})
 
     message_history.append({"role": "user", "content": message.content})
