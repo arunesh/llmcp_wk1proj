@@ -117,11 +117,32 @@ def parse_assessment_output(output):
         return [], []
 
 
+@cl.set_starters
+async def set_starters():
+    return [
+        cl.Starter(
+            label="Summarize Q2 results for NVIDIA",
+            message="Can you summarize this quarter's results ? ",
+            ),
+
+        cl.Starter(
+            label="Revenue breakdown",
+            message="What were the major product categories that contributed significantly to the revenue ?",
+            ),
+        cl.Starter(
+            label="Projections",
+            message="What are the expectations for the next quarter ?",
+            ),
+        cl.Starter(
+            label="Assessment",
+            message="How good or bad was this quarter ?",
+            )
+        ]
+
 @traceable
 @cl.on_message
 async def on_message(message: cl.Message):
     message_history = cl.user_session.get("message_history", [])
-
     if ENABLE_SYSTEM_PROMPT and (not message_history or message_history[0].get("role") != "system"):
         system_prompt_content = SYSTEM_PROMPT_2
         if ENABLE_ADDITIONAL_CONTEXT:
@@ -131,6 +152,7 @@ async def on_message(message: cl.Message):
         message_history.insert(0, {"role": "system", "content": system_prompt_content})
 
     message_history.append({"role": "user", "content": message.content})
+    print("Message history: " + str(message_history))
 
     asyncio.create_task(assess_message(message_history))
     
