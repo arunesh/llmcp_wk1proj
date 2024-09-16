@@ -2,6 +2,8 @@
 
 Goal: Summarize a document
 
-Document URL: The Return of Sherlock Holmes, by Arthur Conan Doyle
+Document URL: Quarterly NVIDIA financial results.
 
-https://www.gutenberg.org/cache/epub/221/pg221.txt
+https://nvidianews.nvidia.com/news/nvidia-announces-financial-results-for-second-quarter-fiscal-2025
+
+Metrics: Accuracy of answers and "make it interesting/engaging"
